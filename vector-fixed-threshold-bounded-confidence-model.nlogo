@@ -1,23 +1,22 @@
 breed [ people person ]
 
-people-own [
-  opinion
-  uncertainty
-  variance-
-  interactions
-  a
-]
+people-own [ opinions ]
 
 to setup
   clear-all
 
   create-people amount [
     setxy random-xcor random-ycor
-    set opinion random-float 1
-    set uncertainty d0
-    set variance- 1
-    set interactions 1
-    if not a-vary [ set a a-const ]
+    set opinions [ ]
+
+    let i 0
+    loop [
+      if i >= m [ stop ]
+
+      set opinions fput (random 2) opinions
+
+      set i i + 1
+    ]
   ]
 
   reset-ticks
@@ -33,7 +32,7 @@ to update-people
     let person1 [self] of self
     ask one-of other people [
       let person2 [self] of self
-      if abs(([opinion] of person1) - ([opinion] of person2)) < uncertainty [
+      if (same-opinions ([opinions] of person1) ([opinions] of person2)) < threshold [
         interact person1 person2
       ]
     ]
@@ -41,34 +40,60 @@ to update-people
 end
 
 to interact [person1 person2]
-  let opinion1 [opinion] of person1
-  let opinion2 [opinion] of person2
+  let opinions1 [opinions] of person1
+  let opinions2 [opinions] of person2
 
-  let variance1 [variance-] of person1
-  let variance2 [variance-] of person2
+  let i 0
+  loop [
+    if i >= m [
+      ask person1 [ set opinions opinions1 ]
+      ask person2 [ set opinions opinions2 ]
 
-  ask person1 [
-    set interactions interactions + 1
-    if a-vary [ set a 1 - (1 / interactions) ]
-    set opinion a * opinion1 + (1 - a) * opinion2
-    set variance- a * variance1 + a * (1 - a) * (opinion1 - opinion2) ^ 2
-    set uncertainty v * (sqrt variance-)
+      stop
+    ]
+
+    if (random-float 1) < u [
+      ifelse (random-float 1) < 0.5 [
+        set opinions1 (replace-item i opinions1 (item i opinions2))
+      ]
+      [
+        set opinions2 (replace-item i opinions2 (item i opinions1))
+      ]
+    ]
+
+    set i i + 1
   ]
+end
 
-  ask person2 [
-    set interactions interactions + 1
-    if a-vary [ set a 1 - (1 / interactions) ]
-    set opinion a * opinion2 + (1 - a) * opinion1
-    set variance- a * variance2 + a * (1 - a) * (opinion2 - opinion1) ^ 2
-    set uncertainty v * (sqrt variance-)
+to-report same-opinions [set1 set2]
+  let i 0
+  let opinion-count 0
+  loop [
+    if i >= (min (list (length set1) (length set2))) [ report opinion-count ]
+
+    if (item i set1) = (item i set2) [
+      set opinion-count opinion-count + 1
+    ]
+
+    set i i + 1
+  ]
+end
+
+to-report opinion-size [dfgdfsgsdg]
+  let i 0
+  let n 0
+  loop [
+    if i >= (length dfgdfsgsdg) [ report n ]
+    if (item i dfgdfsgsdg) = 1 [ set n n + (2 * (item i dfgdfsgsdg)) ^ i ]
+    set i i + 1
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-227
-16
-404
-194
+209
+12
+386
+190
 -1
 -1
 5.121212121212122
@@ -128,18 +153,18 @@ NIL
 PLOT
 12
 220
-669
 654
+756
 opinions
 ticks
 opinion
 0.0
-100.0
+10.0
 0.0
 1.0
+false
 true
-true
-"" "ask people [\n  create-temporary-plot-pen \"opinion\"\n  set-plot-pen-color 15\n  set-plot-pen-mode 2\n  plotxy ticks opinion\n  \n  create-temporary-plot-pen \"uncertainty\"\n  set-current-plot-pen \"uncertainty\"\n  set-plot-pen-color 65\n  set-plot-pen-mode 2\n  plotxy ticks uncertainty\n]"
+"" "clear-plot\nset-plot-x-range 0 m ^ 2\nset-plot-y-range 0 amount\nask turtles [\n  create-temporary-plot-pen \"opinion\"\n  set-plot-pen-color 15\n  set-plot-pen-mode 1\n  let test opinions\n  plotxy (opinion-size opinions) (count turtles with [opinions = test])\n]"
 PENS
 
 INPUTBOX
@@ -148,7 +173,7 @@ INPUTBOX
 63
 203
 amount
-1000.0
+100.0
 1
 0
 Number
@@ -156,10 +181,25 @@ Number
 SLIDER
 12
 60
-200
+201
 93
-v
-v
+threshold
+threshold
+0
+10
+10.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+12
+100
+200
+133
+u
+u
 0
 1
 1.0
@@ -169,78 +209,17 @@ NIL
 HORIZONTAL
 
 INPUTBOX
-73
+77
 143
-196
+199
 203
-d0
-0.4
+m
+6.0
 1
 0
 Number
 
-SWITCH
-10
-101
-113
-134
-a-vary
-a-vary
-1
-1
--1000
-
-SLIDER
-119
-102
-211
-135
-a-const
-a-const
-0
-1
-0.7
-0.01
-1
-NIL
-HORIZONTAL
-
 @#$#@#$#@
-## WHAT IS IT?
-
-(a general understanding of what the model is trying to show or explain)
-
-## HOW IT WORKS
-
-(what rules the agents use to create the overall behavior of the model)
-
-## HOW TO USE IT
-
-(how to use the model, including a description of each of the items in the Interface tab)
-
-## THINGS TO NOTICE
-
-(suggested things for the user to notice while running the model)
-
-## THINGS TO TRY
-
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
-
-## EXTENDING THE MODEL
-
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
-
-## RELATED MODELS
-
-(models in the NetLogo Models Library and elsewhere which are of related interest)
-
-## CREDITS AND REFERENCES
-
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
 @#$#@#$#@
 default
 true
