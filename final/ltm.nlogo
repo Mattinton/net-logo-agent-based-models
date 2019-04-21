@@ -3,50 +3,102 @@ extensions [nw]
 breed [ people person ]
 undirected-link-breed [ neighbours neighbour ]
 
-people-own [ adopted threshold ]
-
-globals [ ]
+people-own [ adopted adopted-at uncertainty ]
 
 to setup
   clear-all
 
-  nw:generate-lattice-2d people neighbours world-width world-height false
-  (foreach (sort turtles) (sort patches)
+  ifelse network = "2d-lattice"
   [
-    [t p] -> ask t [ move-to p ] ask t
+    nw:generate-lattice-2d people neighbours world-width world-height true
+    init-people
+  ]
+  [
+    ifelse network = "scale-free"
     [
-      set adopted 0
-      set threshold (random-float population-threshold)
-
-      set color blue
-      set shape "square"
+      nw:generate-preferential-attachment people neighbours (world-width * world-height) 1
+      init-people
     ]
-  ])
+    [
+      ifelse network = "small-world"
+      [
+        nw:generate-watts-strogatz people neighbours (world-width * world-height) 4 0.1
+        init-people
+      ]
+      [
+        print "network undefined"
+      ]
+    ]
+  ]
 
-  ask n-of 1 people
+  ask n-of start-seeds people
   [
-    set adopted 1
-    set color red
+    set adopted "true"
+    set adopted-at 0
+    set color (list (127.5 + uncertainty * 127.25) 0 0)
+  ]
+
+  ask n-of start-vaccinated people with [ adopted = "false" ]
+  [
+    set adopted "vaccinated"
+    set adopted-at -1
+    set color (list 0 (127.5 + uncertainty * 127.25) 0)
   ]
 
   reset-ticks
 end
 
-to go
-  ask people with [ adopted = 1 ]
+to init-people
+  (foreach (sort people) (sort patches)
   [
-    set adopted 2
-  ]
-
-  ask people with [ adopted = 0 ]
-  [
-    let neighbours-count count link-neighbors
-    let neighbours-adopted-count count link-neighbors with [ adopted = 2 ]
-
-    if neighbours-adopted-count / neighbours-count >= threshold
+    [t p] -> ask t [ move-to p ] ask t
     [
-      set adopted 1
-      set color red
+      set adopted "false"
+      set adopted-at -1
+      set shape "square"
+
+      ifelse uncertainty-distribution = "fixed"
+      [
+        set uncertainty max-uncertainty
+      ]
+      [
+        ifelse uncertainty-distribution = "uniform"
+        [
+          set uncertainty (random-float max-uncertainty)
+        ]
+        [
+          ifelse uncertainty-distribution = "normal"
+          [
+            set uncertainty ((random-normal 0.5 0.1) * max-uncertainty)
+            if uncertainty < 0
+            [
+                set uncertainty 0
+            ]
+
+            if uncertainty > max-uncertainty
+            [
+                set uncertainty max-uncertainty
+            ]
+          ]
+          [
+            print "uncertainty undefined"
+          ]
+        ]
+      ]
+
+      set color (list 0 0 (127.5 + uncertainty * 127.25))
+    ]
+  ])
+end
+
+to go
+  ask people with [ adopted = "false" ]
+  [
+    if ((count link-neighbors with [ adopted = "true" and adopted-at < ticks ]) / (count link-neighbors)) > uncertainty
+    [
+      set adopted "true"
+      set adopted-at ticks
+      set color (list (127.5 + uncertainty * 127.25) 0 0)
     ]
   ]
 
@@ -54,13 +106,13 @@ to go
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+215
 10
-569
-370
+473
+269
 -1
 -1
-5.4
+6.1
 1
 10
 1
@@ -70,21 +122,32 @@ GRAPHICS-WINDOW
 1
 1
 1
--32
-32
--32
-32
+-20
+20
+-20
+20
 1
 1
 1
 ticks
 30.0
 
+INPUTBOX
+10
+55
+100
+115
+start-seeds
+1.0
+1
+0
+Number
+
 BUTTON
-28
-33
-94
-66
+10
+10
+100
+43
 NIL
 setup
 NIL
@@ -98,10 +161,10 @@ NIL
 1
 
 BUTTON
-30
-86
-93
-119
+110
+10
+205
+43
 NIL
 go
 T
@@ -115,15 +178,70 @@ NIL
 0
 
 INPUTBOX
-36
-140
-185
-200
-population-threshold
-0.75
+110
+55
+205
+115
+start-vaccinated
+0.0
 1
 0
 Number
+
+PLOT
+10
+280
+475
+530
+plot 1
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"not adopted" 1.0 0 -14070903 true "" "plot count people with [ adopted = \"false\" ]"
+"adopted" 1.0 0 -5298144 true "" "plot count people with [ adopted = \"true\" ]"
+"adopters" 1.0 0 -7500403 true "" "plot count people with [ adopted = \"true\" and adopted-at = ticks - 1 ]"
+
+CHOOSER
+10
+125
+205
+170
+network
+network
+"2d-lattice" "scale-free" "small-world"
+0
+
+CHOOSER
+10
+180
+205
+225
+uncertainty-distribution
+uncertainty-distribution
+"fixed" "uniform" "normal"
+0
+
+SLIDER
+10
+235
+205
+268
+max-uncertainty
+max-uncertainty
+0
+1
+0.0
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -484,5 +602,5 @@ true
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 @#$#@#$#@
-0
+1
 @#$#@#$#@

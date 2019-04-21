@@ -5,14 +5,14 @@ undirected-link-breed [ neighbours neighbour ]
 
 people-own [ infection-state neighbours-infected ]
 
-globals [ infection-rate infection-rate-history ]
+globals [ repro-rates ]
 
 to setup
   clear-all
 
-  set infection-rate-history []
+  set repro-rates []
 
-  nw:generate-lattice-2d people neighbours world-width world-height false
+  nw:generate-lattice-2d people neighbours world-width world-height true
   (foreach (sort turtles) (sort patches)
   [
     [t p] -> ask t [ move-to p ] ask t
@@ -48,30 +48,36 @@ to go
     ]
   ]
 
-  let prev-susceptible (count people with [ infection-state = "susceptible" ])
-  let infectable 0
-  let infectors (count people with [ infection-state = "infected" ])
+  ask people with [ infection-state = "new-infected" ]
+  [
+    set infection-state "infected"
+  ]
 
+  let infectors 0
   ask people with [ infection-state = "infected" ]
   [
+    let infector false
     ask link-neighbors with [ infection-state = "susceptible" ] [
-      set infectable (infectable + 1)
       if random-float 1 < disease-transmission-rate
       [
+        if not infector
+        [
+          set infectors (infectors + 1)
+          set infector true
+        ]
         ask myself [ set neighbours-infected (neighbours-infected + 1) ]
-        set infection-state "infected"
+        set infection-state "new-infected"
         set color red
       ]
     ]
   ]
 
-  let susceptible (count people with [ infection-state = "susceptible" ])
-  let new-infected (prev-susceptible - susceptible)
-
-  if infectors > 0
+  ifelse infectors > 0
   [
-    set infection-rate-history (lput (new-infected / infectors) infection-rate-history)
-    set infection-rate (mean infection-rate-history)
+    set repro-rates (lput ((count people with [ infection-state = "new-infected" ]) / infectors) repro-rates)
+  ]
+  [
+    set repro-rates (lput 0 repro-rates)
   ]
 
   tick
@@ -124,7 +130,7 @@ recovery-rate
 recovery-rate
 0
 1
-0.2
+0.03
 0.01
 1
 NIL
@@ -139,7 +145,7 @@ disease-transmission-rate
 disease-transmission-rate
 0
 1
-0.47
+0.06
 0.01
 1
 NIL
@@ -185,7 +191,7 @@ INPUTBOX
 200
 70
 start-vaccinated
-2100.0
+0.0
 1
 0
 Number
@@ -211,24 +217,6 @@ PENS
 "pen-2" 1.0 0 -14439633 true "" "plot count people with [ infection-state = \"recovered\" ]"
 
 PLOT
-755
-10
-1092
-210
-plot 2
-NIL
-NIL
-0.0
-1.0
-0.0
-1.0
-true
-true
-"" ""
-PENS
-"pen-0" 1.0 0 -7500403 true "" "plot infection-rate / recovery-rate"
-
-PLOT
 762
 228
 1165
@@ -244,7 +232,25 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot mean [ neighbours-infected ] of people with [ infection-state = \"recovered\" ]"
+"default" 1.0 0 -16777216 true "" "plot mean [ neighbours-infected ] of people with [ infection-state = \"infected\" ]"
+
+PLOT
+765
+35
+965
+185
+plot 2
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean repro-rates"
 
 @#$#@#$#@
 ## WHAT IS IT?

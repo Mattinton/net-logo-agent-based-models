@@ -3,50 +3,116 @@ extensions [nw]
 breed [ people person ]
 undirected-link-breed [ neighbours neighbour ]
 
-people-own [ adopted threshold ]
-
-globals [ ]
+people-own [ infection-state susceptibility ]
 
 to setup
   clear-all
 
-  nw:generate-lattice-2d people neighbours world-width world-height false
-  (foreach (sort turtles) (sort patches)
+  ifelse network = "2d-lattice"
   [
-    [t p] -> ask t [ move-to p ] ask t
+    nw:generate-lattice-2d people neighbours world-width world-height true
+    init-people
+  ]
+  [
+    ifelse network = "scale-free"
     [
-      set adopted 0
-      set threshold (random-float population-threshold)
-
-      set color blue
-      set shape "square"
+      nw:generate-preferential-attachment people neighbours (world-width * world-height) 1
+      init-people
     ]
-  ])
+    [
+      ifelse network = "small-world"
+      [
+        nw:generate-watts-strogatz people neighbours (world-width * world-height) 4 0.1
+        init-people
+      ]
+      [
+        print "network undefined"
+      ]
+    ]
+  ]
 
-  ask n-of 1 people
+  ask n-of start-seeds people
   [
-    set adopted 1
-    set color red
+    set infection-state "infected"
+    set color (list (127.5 + susceptibility * 127.25) 0 0)
+  ]
+
+  ask n-of start-vaccinated people with [ infection-state = "susceptible" ]
+  [
+    set infection-state "recovered"
+    set color (list 0 (127.5 + susceptibility * 127.25) 0)
   ]
 
   reset-ticks
 end
 
-to go
-  ask people with [ adopted = 1 ]
+to init-people
+  (foreach (sort people) (sort patches)
   [
-    set adopted 2
+    [t p] -> ask t [ move-to p ] ask t
+    [
+      set infection-state "susceptible"
+      set shape "square"
+
+      ifelse susceptibility-distribution = "fixed"
+      [
+        set susceptibility max-susceptibility
+      ]
+      [
+        ifelse susceptibility-distribution = "uniform"
+        [
+          set susceptibility (random-float max-susceptibility)
+        ]
+        [
+          ifelse susceptibility-distribution = "normal"
+          [
+            set susceptibility ((random-normal 0.5 0.1) * max-susceptibility)
+            if susceptibility < 0
+            [
+                set susceptibility 0
+            ]
+
+            if susceptibility > max-susceptibility
+            [
+                set susceptibility max-susceptibility
+            ]
+          ]
+          [
+            print "susceptibility undefined"
+          ]
+        ]
+      ]
+
+      set color (list 0 0 (127.5 + susceptibility * 127.25))
+    ]
+  ])
+end
+
+to go
+  ask people with [ infection-state = "new-infected" ]
+  [
+    set infection-state "infected"
   ]
 
-  ask people with [ adopted = 0 ]
+  ask people with [ infection-state = "infected" ]
   [
-    let neighbours-count count link-neighbors
-    let neighbours-adopted-count count link-neighbors with [ adopted = 2 ]
-
-    if neighbours-adopted-count / neighbours-count >= threshold
+    if infection-state = "infected"
     [
-      set adopted 1
-      set color red
+      ifelse random-float 1 < recovery-rate
+      [
+        set infection-state "recovered"
+        set color (list 0 (127.5 + susceptibility * 127.25) 0)
+      ]
+      [
+        ask link-neighbors with [ infection-state = "susceptible" ]
+        [
+          if random-float 1 < susceptibility
+          [
+            set infection-state "new-infected"
+            set color (list (127.5 + susceptibility * 127.5) 0 0)
+          ]
+        ]
+      ]
     ]
   ]
 
@@ -54,13 +120,13 @@ to go
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-569
-370
+215
+13
+513
+312
 -1
 -1
-5.4
+7.0732
 1
 10
 1
@@ -70,21 +136,32 @@ GRAPHICS-WINDOW
 1
 1
 1
--32
-32
--32
-32
+-20
+20
+-20
+20
 1
 1
 1
 ticks
 30.0
 
+INPUTBOX
+10
+55
+100
+115
+start-seeds
+1.0
+1
+0
+Number
+
 BUTTON
-28
-33
-94
-66
+10
+10
+100
+43
 NIL
 setup
 NIL
@@ -98,10 +175,10 @@ NIL
 1
 
 BUTTON
-30
-86
-93
-119
+110
+10
+205
+43
 NIL
 go
 T
@@ -115,15 +192,85 @@ NIL
 0
 
 INPUTBOX
-36
-140
-185
-200
-population-threshold
-0.75
+110
+55
+205
+115
+start-vaccinated
+0.0
 1
 0
 Number
+
+PLOT
+10
+325
+515
+575
+plot 1
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"susceptible" 1.0 0 -14070903 true "" "plot count people with [ infection-state = \"susceptible\" ]"
+"infected" 1.0 0 -5298144 true "" "plot count people with [ infection-state = \"infected\" ]"
+"recovered" 1.0 0 -14439633 true "" "plot count people with [ infection-state = \"recovered\" ]"
+
+CHOOSER
+10
+125
+205
+170
+network
+network
+"2d-lattice" "scale-free" "small-world"
+2
+
+SLIDER
+10
+180
+205
+213
+recovery-rate
+recovery-rate
+0
+1
+0.09
+0.01
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+10
+225
+205
+270
+susceptibility-distribution
+susceptibility-distribution
+"fixed" "uniform" "normal"
+0
+
+SLIDER
+10
+280
+205
+313
+max-susceptibility
+max-susceptibility
+0
+1
+0.33
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -484,5 +631,5 @@ true
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 @#$#@#$#@
-0
+1
 @#$#@#$#@

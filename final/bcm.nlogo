@@ -3,50 +3,114 @@ extensions [nw]
 breed [ people person ]
 undirected-link-breed [ neighbours neighbour ]
 
-people-own [ adopted threshold ]
-
-globals [ ]
+people-own [ opinion openness ]
 
 to setup
   clear-all
 
-  nw:generate-lattice-2d people neighbours world-width world-height false
-  (foreach (sort turtles) (sort patches)
+  ifelse network = "2d-lattice"
   [
-    [t p] -> ask t [ move-to p ] ask t
+    nw:generate-lattice-2d people neighbours world-width world-height true
+    init-people
+  ]
+  [
+    ifelse network = "scale-free"
     [
-      set adopted 0
-      set threshold (random-float population-threshold)
-
-      set color blue
-      set shape "square"
+      nw:generate-preferential-attachment people neighbours (world-width * world-height) 1
+      init-people
     ]
-  ])
-
-  ask n-of 1 people
-  [
-    set adopted 1
-    set color red
+    [
+      ifelse network = "small-world"
+      [
+        nw:generate-watts-strogatz people neighbours (world-width * world-height) 4 0.1
+        init-people
+      ]
+      [
+        print "network undefined"
+      ]
+    ]
   ]
 
   reset-ticks
 end
 
-to go
-  ask people with [ adopted = 1 ]
+to init-people
+  (foreach (sort people) (sort patches)
   [
-    set adopted 2
-  ]
-
-  ask people with [ adopted = 0 ]
-  [
-    let neighbours-count count link-neighbors
-    let neighbours-adopted-count count link-neighbors with [ adopted = 2 ]
-
-    if neighbours-adopted-count / neighbours-count >= threshold
+    [t p] -> ask t [ move-to p ] ask t
     [
-      set adopted 1
-      set color red
+      set color blue
+      set shape "square"
+
+      ifelse openness-distribution = "fixed"
+      [
+        set openness max-openness
+      ]
+      [
+        ifelse openness-distribution = "uniform"
+        [
+          set openness (random-float max-openness)
+        ]
+        [
+          ifelse openness-distribution = "normal"
+          [
+            set openness ((random-normal 0.5 0.1) * max-openness)
+            if openness < 0
+            [
+                set openness 0
+            ]
+
+            if openness > max-openness
+            [
+                set openness max-openness
+            ]
+          ]
+          [
+            print "openness undefined"
+          ]
+        ]
+      ]
+
+      ifelse opinion-distribution = "uniform"
+      [
+        set opinion (random-float 1)
+      ]
+      [
+        ifelse opinion-distribution = "normal"
+        [
+          set opinion (random-normal 0.5 0.1)
+          if opinion < 0
+          [
+              set opinion 0
+          ]
+
+          if opinion > 1
+          [
+              set opinion 1
+          ]
+        ]
+        [
+          print "opinion undefined"
+        ]
+      ]
+
+      set color (list (63.75 + opinion * 191.25) (63.75 + opinion * 191.25) (63.75 + opinion * 191.25))
+    ]
+  ])
+end
+
+to go
+  ask people
+  [
+    ask one-of link-neighbors
+    [
+      let opinion-difference (([ opinion ] of myself) - opinion)
+
+      if (abs opinion-difference) < openness
+      [
+        set opinion (opinion + convergence-rate * opinion-difference)
+        set color (list (63.75 + opinion * 191.25) (63.75 + opinion * 191.25) (63.75 + opinion * 191.25))
+      ]
     ]
   ]
 
@@ -54,13 +118,13 @@ to go
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+215
 10
-569
-370
+503
+299
 -1
 -1
-5.4
+6.83
 1
 10
 1
@@ -70,10 +134,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--32
-32
--32
-32
+-20
+20
+-20
+20
 1
 1
 1
@@ -81,10 +145,10 @@ ticks
 30.0
 
 BUTTON
-28
-33
-94
-66
+10
+10
+100
+43
 NIL
 setup
 NIL
@@ -98,10 +162,10 @@ NIL
 1
 
 BUTTON
-30
-86
-93
-119
+110
+10
+205
+43
 NIL
 go
 T
@@ -114,16 +178,83 @@ NIL
 NIL
 0
 
-INPUTBOX
-36
-140
-185
-200
-population-threshold
-0.75
-1
+PLOT
+10
+310
+505
+560
+plot 1
+NIL
+NIL
+0.0
+200.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"not adopted" 1.0 0 -14070903 true "" "ask turtles [\n  create-temporary-plot-pen (word who)\n  set-plot-pen-color 1\n  set-plot-pen-mode 2\n  plotxy ticks opinion\n]"
+
+CHOOSER
+10
+55
+205
+100
+network
+network
+"2d-lattice" "scale-free" "small-world"
 0
-Number
+
+CHOOSER
+10
+155
+205
+200
+openness-distribution
+openness-distribution
+"fixed" "uniform" "normal"
+0
+
+SLIDER
+10
+210
+205
+243
+max-openness
+max-openness
+0
+1
+0.25
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+110
+205
+143
+convergence-rate
+convergence-rate
+0
+1
+0.5
+0.01
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+10
+255
+205
+300
+opinion-distribution
+opinion-distribution
+"uniform" "normal"
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -484,5 +615,5 @@ true
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 @#$#@#$#@
-0
+1
 @#$#@#$#@
