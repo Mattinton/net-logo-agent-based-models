@@ -3,10 +3,15 @@ extensions [nw]
 breed [ people person ]
 undirected-link-breed [ neighbours neighbour ]
 
-people-own [ infection-state susceptibility ]
+globals [ current-R0 current-threshold ]
+
+people-own [ infection-state susceptibility num-infected ]
 
 to setup
   clear-all
+
+  set current-R0 0
+  set current-threshold 0
 
   ifelse network = "2d-lattice"
   [
@@ -33,7 +38,7 @@ to setup
 
   ask n-of start-seeds people
   [
-    set infection-state "infected"
+    set infection-state "new-infected"
     set color (list (127.5 + susceptibility * 127.25) 0 0)
   ]
 
@@ -53,6 +58,7 @@ to init-people
     [
       set infection-state "susceptible"
       set shape "square"
+      set num-infected 0
 
       ifelse susceptibility-distribution = "fixed"
       [
@@ -96,24 +102,34 @@ to go
 
   ask people with [ infection-state = "infected" ]
   [
-    if infection-state = "infected"
+    ifelse random-float 1 < recovery-rate
     [
-      ifelse random-float 1 < recovery-rate
+      set infection-state "recovered"
+      set color (list 0 (127.5 + susceptibility * 127.25) 0)
+    ]
+    [
+      ask link-neighbors with [ infection-state = "susceptible" ]
       [
-        set infection-state "recovered"
-        set color (list 0 (127.5 + susceptibility * 127.25) 0)
-      ]
-      [
-        ask link-neighbors with [ infection-state = "susceptible" ]
+        if random-float 1 < susceptibility
         [
-          if random-float 1 < susceptibility
+          set infection-state "new-infected"
+          set color (list (127.5 + susceptibility * 127.5) 0 0)
+          ask myself
           [
-            set infection-state "new-infected"
-            set color (list (127.5 + susceptibility * 127.5) 0 0)
+            set num-infected (num-infected + 1)
           ]
         ]
       ]
     ]
+  ]
+
+  set current-R0 (mean [ num-infected ] of people with [ infection-state = "infected" or infection-state = "recovered" ])
+  ifelse (current-R0 > 0)
+  [
+    set current-threshold (1 - 1 / current-R0)
+  ]
+  [
+    set current-threshold 0
   ]
 
   tick
@@ -121,12 +137,12 @@ end
 @#$#@#$#@
 GRAPHICS-WINDOW
 215
-13
-513
-312
+10
+523
+319
 -1
 -1
-7.0732
+5.9
 1
 10
 1
@@ -136,10 +152,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--20
-20
--20
-20
+-25
+25
+-25
+25
 1
 1
 1
@@ -205,9 +221,9 @@ Number
 PLOT
 10
 325
-515
+340
 575
-plot 1
+Susceptibile, Infected, Recovered
 NIL
 NIL
 0.0
@@ -219,8 +235,9 @@ true
 "" ""
 PENS
 "susceptible" 1.0 0 -14070903 true "" "plot count people with [ infection-state = \"susceptible\" ]"
-"infected" 1.0 0 -5298144 true "" "plot count people with [ infection-state = \"infected\" ]"
+"infected" 1.0 0 -5298144 true "" "plot count people with [ infection-state = \"infected\" or infection-state = \"new-infected\" ]"
 "recovered" 1.0 0 -14439633 true "" "plot count people with [ infection-state = \"recovered\" ]"
+"total-infected" 1.0 0 -7500403 true "" "plot count people with [ infection-state != \"susceptible\" ]"
 
 CHOOSER
 10
@@ -230,7 +247,7 @@ CHOOSER
 network
 network
 "2d-lattice" "scale-free" "small-world"
-2
+0
 
 SLIDER
 10
@@ -241,7 +258,7 @@ recovery-rate
 recovery-rate
 0
 1
-0.09
+0.05
 0.01
 1
 NIL
@@ -255,7 +272,7 @@ CHOOSER
 susceptibility-distribution
 susceptibility-distribution
 "fixed" "uniform" "normal"
-0
+2
 
 SLIDER
 10
@@ -266,11 +283,73 @@ max-susceptibility
 max-susceptibility
 0
 1
-0.33
+0.25
 0.01
 1
 NIL
 HORIZONTAL
+
+PLOT
+350
+325
+725
+575
+Critical Immunisation Threshold
+NIL
+NIL
+0.0
+10.0
+0.0
+1.0
+true
+true
+"" ""
+PENS
+"threshold" 1.0 0 -955883 true "" "plot current-threshold"
+
+MONITOR
+530
+270
+605
+315
+current-R0
+current-R0
+2
+1
+11
+
+MONITOR
+535
+10
+642
+55
+population size
+count people
+2
+1
+11
+
+MONITOR
+615
+270
+725
+315
+current-threshold
+current-threshold
+2
+1
+11
+
+MONITOR
+535
+65
+645
+110
+population susceptibility
+mean [ susceptibility ] of people
+2
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -618,6 +697,34 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="200" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>(count people with [ infection-state = "new-infected" or infection-state = "infected" ]) &lt;= 0</exitCondition>
+    <metric>current-R0</metric>
+    <metric>(count people with [ infection-state != "susceptible" ]) / (count people)</metric>
+    <enumeratedValueSet variable="max-susceptibility">
+      <value value="0.2"/>
+      <value value="0.4"/>
+      <value value="0.6"/>
+      <value value="0.8"/>
+      <value value="1"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment" repetitions="200" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>((count people with [ infection-state = "new-infected" or infection-state = "infected" ]) &lt;= 0)</exitCondition>
+    <metric>current-R0</metric>
+    <metric>(count people with [ infection-state != "susceptible" ]) / (count people)</metric>
+    <enumeratedValueSet variable="susceptibility-distribution">
+      <value value="&quot;fixed&quot;"/>
+      <value value="&quot;uniform&quot;"/>
+      <value value="&quot;normal&quot;"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default

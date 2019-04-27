@@ -3,10 +3,15 @@ extensions [nw]
 breed [ people person ]
 undirected-link-breed [ neighbours neighbour ]
 
-people-own [ opinion openness ]
+people-own [ adopted adopted-at uncertainty ]
+
+globals [ current-R0 current-threshold ]
 
 to setup
   clear-all
+
+  set current-R0 0
+  set current-threshold 0
 
   ifelse network = "2d-lattice"
   [
@@ -26,10 +31,23 @@ to setup
         init-people
       ]
       [
-        create-people world-height * world-width
-        init-people
+        print "network undefined"
       ]
     ]
+  ]
+
+  ask n-of start-seeds people
+  [
+    set adopted "true"
+    set adopted-at -1
+    set color (list (127.5 + uncertainty * 127.25) 0 0)
+  ]
+
+  ask n-of start-vaccinated people with [ adopted = "false" ]
+  [
+    set adopted "vaccinated"
+    set adopted-at -1
+    set color (list 0 (127.5 + uncertainty * 127.25) 0)
   ]
 
   reset-ticks
@@ -40,85 +58,76 @@ to init-people
   [
     [t p] -> ask t [ move-to p ] ask t
     [
-      set color blue
+      set adopted "false"
+      set adopted-at -1
       set shape "square"
 
-      ifelse openness-distribution = "fixed"
+      ifelse uncertainty-distribution = "fixed"
       [
-        set openness max-openness
+        set uncertainty max-uncertainty
       ]
       [
-        ifelse openness-distribution = "uniform"
+        ifelse uncertainty-distribution = "uniform"
         [
-          set openness (random-float max-openness)
+          set uncertainty (random-float max-uncertainty)
         ]
         [
-          ifelse openness-distribution = "normal"
+          ifelse uncertainty-distribution = "normal"
           [
-            set openness ((random-normal 0.5 0.1) * max-openness)
-            if openness < 0
+            set uncertainty ((random-normal 0.5 0.1) * max-uncertainty)
+            if uncertainty < 0
             [
-                set openness 0
+                set uncertainty 0
             ]
 
-            if openness > max-openness
+            if uncertainty > max-uncertainty
             [
-                set openness max-openness
+                set uncertainty max-uncertainty
             ]
           ]
           [
-            print "openness undefined"
+            print "uncertainty undefined"
           ]
         ]
       ]
 
-      ifelse opinion-distribution = "uniform"
-      [
-        set opinion (random-float 1)
-      ]
-      [
-        ifelse opinion-distribution = "normal"
-        [
-          set opinion (random-normal 0.5 0.1)
-          if opinion < 0
-          [
-              set opinion 0
-          ]
-
-          if opinion > 1
-          [
-              set opinion 1
-          ]
-        ]
-        [
-          print "opinion undefined"
-        ]
-      ]
-
-      set color (list (63.75 + opinion * 191.25) (63.75 + opinion * 191.25) (63.75 + opinion * 191.25))
+      set color (list 0 0 (127.5 + uncertainty * 127.25))
     ]
   ])
 end
 
 to go
-  ask people
+  ask people with [ adopted = "false" ]
   [
-    let agent-neighbours people
-    if network != "fully-connected"
+    if ((count link-neighbors with [ adopted = "true" and adopted-at < ticks ]) / (count link-neighbors)) > uncertainty
     [
-      set agent-neighbours link-neighbors
+      set adopted "true"
+      set adopted-at ticks
+      set color (list (127.5 + uncertainty * 127.25) 0 0)
     ]
+  ]
 
-    ask one-of agent-neighbours
+  let afters []
+  ask people with [ adopted = "true" and adopted-at < ticks ]
+  [
+    let parent-adopted-at adopted-at
+    set afters (lput (count link-neighbors with [ adopted = "true" and adopted-at = parent-adopted-at + 1 ]) afters)
+  ]
+
+  ifelse not empty? afters
+  [
+    set current-R0 (mean afters)
+    ifelse current-R0 > 0
     [
-      let opinion-difference (([ opinion ] of myself) - opinion)
-
-      if (abs opinion-difference) < openness
-      [
-        set opinion (opinion + convergence-rate * opinion-difference)
-        set color (list (63.75 + opinion * 191.25) (63.75 + opinion * 191.25) (63.75 + opinion * 191.25))
-      ]
+      set current-threshold (1 - 1 / current-R0)
     ]
+    [
+      set current-threshold 0
+    ]
+  ]
+  [
+    set current-R0 0
+    set current-threshold 0
   ]
 
   tick
@@ -127,11 +136,11 @@ end
 GRAPHICS-WINDOW
 210
 10
-503
-304
+473
+274
 -1
 -1
-6.95122
+5.0
 1
 10
 1
@@ -141,15 +150,26 @@ GRAPHICS-WINDOW
 1
 1
 1
--20
-20
--20
-20
+-25
+25
+-25
+25
 1
 1
 1
 ticks
 30.0
+
+INPUTBOX
+10
+55
+100
+115
+start-seeds
+1.0
+1
+0
+Number
 
 BUTTON
 10
@@ -185,83 +205,111 @@ NIL
 NIL
 0
 
+INPUTBOX
+110
+55
+205
+115
+start-vaccinated
+0.0
+1
+0
+Number
+
 PLOT
 10
-310
-505
-560
+280
+475
+530
 plot 1
 NIL
 NIL
 0.0
-200.0
+10.0
 0.0
-1.0
+10.0
+true
+true
+"" ""
+PENS
+"not adopted" 1.0 0 -14070903 true "" "plot count people with [ adopted = \"false\" ]"
+"adopted" 1.0 0 -5298144 true "" "plot count people with [ adopted = \"true\" ]"
+"adopters" 1.0 0 -7500403 true "" "plot count people with [ adopted = \"true\" and adopted-at = ticks - 1 ]"
+
+CHOOSER
+10
+125
+205
+170
+network
+network
+"2d-lattice" "scale-free" "small-world"
+0
+
+CHOOSER
+10
+180
+205
+225
+uncertainty-distribution
+uncertainty-distribution
+"fixed" "uniform" "normal"
+1
+
+SLIDER
+10
+235
+205
+268
+max-uncertainty
+max-uncertainty
+0
+1
+0.6
+0.01
+1
+NIL
+HORIZONTAL
+
+PLOT
+485
+280
+855
+530
+plot 2
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
 true
 false
 "" ""
 PENS
-"not adopted" 1.0 0 -14070903 true "" "ask turtles [\n  create-temporary-plot-pen (word who)\n  set-plot-pen-color 1\n  set-plot-pen-mode 2\n  plotxy ticks opinion\n]"
+"default" 1.0 0 -16777216 true "" "plot current-threshold"
 
-CHOOSER
+MONITOR
+485
 10
+592
 55
-205
-100
-network
-network
-"fully-connected" "2d-lattice" "scale-free" "small-world"
-0
-
-CHOOSER
-10
-155
-205
-200
-openness-distribution
-openness-distribution
-"fixed" "uniform" "normal"
-0
-
-SLIDER
-10
-210
-205
-243
-max-openness
-max-openness
-0
+population size
+count people
+17
 1
-1.0
-0.01
-1
-NIL
-HORIZONTAL
+11
 
-SLIDER
-10
+MONITOR
+485
+65
+620
 110
-205
-143
-convergence-rate
-convergence-rate
-0
+population uncertainty
+mean [ uncertainty ] of people
+2
 1
-0.5
-0.01
-1
-NIL
-HORIZONTAL
-
-CHOOSER
-10
-255
-205
-300
-opinion-distribution
-opinion-distribution
-"uniform" "normal"
-1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -609,6 +657,22 @@ NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="200" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>((count people with [ adopted = "true" and adopted-at = (ticks - 1) ]) &lt;= 0)</exitCondition>
+    <metric>current-r0</metric>
+    <metric>(count people with [ adopted = "true" ]) / (count people)</metric>
+    <enumeratedValueSet variable="max-uncertainty">
+      <value value="0"/>
+      <value value="0.2"/>
+      <value value="0.4"/>
+      <value value="0.6"/>
+      <value value="0.8"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
